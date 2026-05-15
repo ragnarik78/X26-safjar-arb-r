@@ -426,7 +426,7 @@ export default function App() {
                 <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
                   <div className="font-semibold">Næstur inn</div>
                   <div className="mt-1">
-                    <span className="font-medium">{nextIn.nextCandidate}</span> á {nextIn.name} væri næstur inn.
+                    <span className="font-medium">{nextIn.nextCandidate}</span> á {nextIn.name} væri næst/ur inn.
                   </div>
                   <div className="mt-1">
                     Listann vantar að minnsta kosti <span className="font-semibold">{formatNumber(nextIn.votesNeeded, 0)}</span> atkvæði til viðbótar til að ná næsta sæti miðað við óbreytt atkvæði annarra lista.
