@@ -258,22 +258,29 @@ export default function App() {
   };
 
   const electedCandidates = useMemo(() => {
-    return results
-      .flatMap((party) =>
-        party.candidates.slice(0, party.seats).map((candidate, index) => ({
+    return rounds
+      .map((round) => {
+        const party = parties.find((item) => item.id === round.winnerPartyId);
+        const candidate = party?.candidates?.[round.divisor - 1] || null;
+        const listVotes = Number(party?.votes) || 0;
+
+        return {
           candidate,
-          listName: party.name,
-          listVotes: party.votes,
-          listPercent: validVotes > 0 ? (party.votes / validVotes) * 100 : 0,
-          listPosition: index + 1,
-        }))
-      )
+          listName: party?.name || round.winnerPartyName,
+          listVotes,
+          listPercent: validVotes > 0 ? (listVotes / validVotes) * 100 : 0,
+          listPosition: round.divisor,
+          quotient: round.quotient,
+          round: round.round,
+        };
+      })
+      .filter((item) => item.candidate)
       .sort((a, b) => {
+        if (b.quotient !== a.quotient) return b.quotient - a.quotient;
         if (b.listVotes !== a.listVotes) return b.listVotes - a.listVotes;
-        if (a.listPosition !== b.listPosition) return a.listPosition - b.listPosition;
         return a.candidate.localeCompare(b.candidate, "is");
       });
-  }, [results, validVotes]);
+  }, [rounds, parties, validVotes]);
 
   const resetValues = () => {
     setParties(initialParties);
@@ -403,18 +410,18 @@ export default function App() {
               {electedCandidates.length > 0 && (
                 <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
                   <div className="mb-3 text-sm font-semibold text-slate-700">
-                    Kjörnir fulltrúar, raðað eftir atkvæðafjölda lista
+                    Kjörnir fulltrúar, raðað eftir útkomutölu hvers sætis
                   </div>
                   <div className="space-y-2">
                     {electedCandidates.map((item, index) => (
                       <div key={`${item.listName}-${item.candidate}`} className="flex items-start justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
                         <div>
                           <div className="font-medium text-slate-900">{index + 1}. {item.candidate}</div>
-                          <div className="text-slate-600">{item.listName} · sæti #{item.listPosition} á lista</div>
+                          <div className="text-slate-600">{item.listName} · sæti #{item.listPosition} á lista · {formatNumber(item.listVotes, 0)} atkvæði á lista</div>
                         </div>
                         <div className="whitespace-nowrap text-right text-slate-700">
-                          <div className="font-semibold">{formatNumber(item.listVotes, 0)}</div>
-                          <div className="text-xs text-slate-500">{formatNumber(item.listPercent)}%</div>
+                          <div className="font-semibold">{formatNumber(item.quotient)}</div>
+                          <div className="text-xs text-slate-500">útkomutala</div>
                         </div>
                       </div>
                     ))}
@@ -426,7 +433,7 @@ export default function App() {
                 <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
                   <div className="font-semibold">Næstur inn</div>
                   <div className="mt-1">
-                    <span className="font-medium">{nextIn.nextCandidate}</span> á {nextIn.name} væri næst/ur inn.
+                    <span className="font-medium">{nextIn.nextCandidate}</span> á {nextIn.name} væri næstur inn.
                   </div>
                   <div className="mt-1">
                     Listann vantar að minnsta kosti <span className="font-semibold">{formatNumber(nextIn.votesNeeded, 0)}</span> atkvæði til viðbótar til að ná næsta sæti miðað við óbreytt atkvæði annarra lista.
