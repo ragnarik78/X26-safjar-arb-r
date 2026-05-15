@@ -232,7 +232,6 @@ function calculateDhondt(parties, seats) {
 export default function App() {
   const [parties, setParties] = useState(initialParties);
   const [registeredVoters, setRegisteredVoters] = useState(2976);
-  const [turnoutPercent, setTurnoutPercent] = useState(71.78);
   const [blankVotes, setBlankVotes] = useState(42);
   const [invalidVotes, setInvalidVotes] = useState(0);
 
@@ -243,8 +242,9 @@ export default function App() {
 
   const otherVotes = (Number(blankVotes) || 0) + (Number(invalidVotes) || 0);
   const totalCastVotesFromInputs = validVotes + otherVotes;
-  const castVotesEstimate = ((Number(registeredVoters) || 0) * (Number(turnoutPercent) || 0)) / 100;
-  const turnoutDifference = castVotesEstimate - totalCastVotesFromInputs;
+  const turnoutPercent = (Number(registeredVoters) || 0) > 0
+    ? (totalCastVotesFromInputs / (Number(registeredVoters) || 0)) * 100
+    : 0;
 
   const { results, rounds, hadTie, nextIn, lastAllocatedSeat } = useMemo(
     () => calculateDhondt(parties, SEATS),
@@ -257,10 +257,27 @@ export default function App() {
     );
   };
 
+  const electedCandidates = useMemo(() => {
+    return results
+      .flatMap((party) =>
+        party.candidates.slice(0, party.seats).map((candidate, index) => ({
+          candidate,
+          listName: party.name,
+          listVotes: party.votes,
+          listPercent: validVotes > 0 ? (party.votes / validVotes) * 100 : 0,
+          listPosition: index + 1,
+        }))
+      )
+      .sort((a, b) => {
+        if (b.listVotes !== a.listVotes) return b.listVotes - a.listVotes;
+        if (a.listPosition !== b.listPosition) return a.listPosition - b.listPosition;
+        return a.candidate.localeCompare(b.candidate, "is");
+      });
+  }, [results, validVotes]);
+
   const resetValues = () => {
     setParties(initialParties);
     setRegisteredVoters(2976);
-    setTurnoutPercent(71.78);
     setBlankVotes(42);
     setInvalidVotes(0);
   };
@@ -271,7 +288,7 @@ export default function App() {
         <header className="space-y-2">
           <h1 className="text-3xl font-bold tracking-tight text-slate-950">Sætaskipting í Ísafjarðarbæ</h1>
           <p className="max-w-4xl text-sm text-slate-600 md:text-base">
-            Reiknivél fyrir framboðslista í Ísafjarðarbæ í sveitarstjórnarkosningunum 2026. Sláðu inn fjölda atkvæða hjá hverjum lista, fjölda á kjörskrá, kjörsókn og fjölda auðra og ógildra atkvæða. Fylgi reiknast sjálfkrafa út frá gildum atkvæðum til lista, og síðan er {SEATS} sætum skipt með deilingaraðferð 1, 2, 3, 4 o.s.frv. (d’Hondt).
+            Reiknivél fyrir framboðslista í Ísafjarðarbæ í sveitarstjórnarkosningunum 2026. Sláðu inn fjölda atkvæða hjá hverjum lista, fjölda á kjörskrá og fjölda auðra og ógildra atkvæða. Kjörsókn og fylgi reiknast sjálfkrafa. Fylgi reiknast út frá gildum atkvæðum til lista, og síðan er {SEATS} sætum skipt með deilingaraðferð 1, 2, 3, 4 o.s.frv. (d’Hondt).
           </p>
         </header>
 
@@ -289,7 +306,9 @@ export default function App() {
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">Kjörsókn (%)</label>
-                    <Input type="number" min="0" max="100" step="0.01" value={turnoutPercent} onChange={(e) => setTurnoutPercent(e.target.value)} />
+                    <div className="flex h-10 items-center rounded-md border border-slate-300 bg-slate-50 px-3 text-sm font-medium text-slate-700">
+                      {formatNumber(turnoutPercent)}%
+                    </div>
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">Auð atkvæði</label>
@@ -341,14 +360,8 @@ export default function App() {
                   <SummaryBox label="Gild atkvæði til lista" value={formatNumber(validVotes, 0)} />
                   <SummaryBox label="Auð + ógild" value={formatNumber(otherVotes, 0)} />
                   <SummaryBox label="Atkvæði samkvæmt inntaki" value={formatNumber(totalCastVotesFromInputs, 0)} />
-                  <SummaryBox label="Áætluð atkvæði af kjörsókn" value={formatNumber(castVotesEstimate, 0)} />
+                  <SummaryBox label="Kjörsókn" value={`${formatNumber(turnoutPercent)}%`} />
                 </div>
-
-                {Math.abs(turnoutDifference) > 0.5 && (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                    Tölurnar passa ekki alveg saman. Mismunur milli áætlaðrar kjörsóknar og skráðra atkvæða er <span className="font-semibold">{formatNumber(turnoutDifference, 0)}</span> atkvæði.
-                  </div>
-                )}
 
                 {hadTie && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
@@ -382,24 +395,32 @@ export default function App() {
                           <div className="text-xs uppercase tracking-wide text-slate-500">sæti</div>
                         </div>
                       </div>
-
-                      {party.seats > 0 && (
-                        <div className="mt-4 border-t border-slate-100 pt-3">
-                          <div className="mb-2 text-sm font-semibold text-slate-700">Kjörnir fulltrúar</div>
-                          <div className="space-y-2">
-                            {party.candidates.slice(0, party.seats).map((candidate, index) => (
-                              <div key={candidate} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                                <span>{candidate}</span>
-                                <span className="font-medium text-slate-500">#{index + 1}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
                     </div>
                   );
                 })}
               </div>
+
+              {electedCandidates.length > 0 && (
+                <div className="mt-6 rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="mb-3 text-sm font-semibold text-slate-700">
+                    Kjörnir fulltrúar, raðað eftir atkvæðafjölda lista
+                  </div>
+                  <div className="space-y-2">
+                    {electedCandidates.map((item, index) => (
+                      <div key={`${item.listName}-${item.candidate}`} className="flex items-start justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2 text-sm">
+                        <div>
+                          <div className="font-medium text-slate-900">{index + 1}. {item.candidate}</div>
+                          <div className="text-slate-600">{item.listName} · sæti #{item.listPosition} á lista</div>
+                        </div>
+                        <div className="whitespace-nowrap text-right text-slate-700">
+                          <div className="font-semibold">{formatNumber(item.listVotes, 0)}</div>
+                          <div className="text-xs text-slate-500">{formatNumber(item.listPercent)}%</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {nextIn && lastAllocatedSeat && (
                 <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm text-blue-950">
